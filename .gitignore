@@ -3,3 +3,6 @@
 *.iml
 *.json
 *.text
+__pycache__/pyson.cpython-36.pyc
+discord.log
+token.txt

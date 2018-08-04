@@ -1,10 +1,10 @@
 """
-Pydump-Rewrite by Scott "LittlemanSMG" Goes
-07/30/2018
+Pydumpster by Scott "LittlemanSMG" Goes
+08/1/2018
 
 Summary:
-  This is another remake of Pydumpster and Pydump-Async. This version will be the definitive version done in
-  discord-rewrite.py, the most up-to-date version of the api.
+  This is another remake of Pydump-Async. This version will be the definitive version done in discord-rewrite.py,
+  the most up-to-date version of the api.
 
 Description:
   This bot has a few different functions, but it's primarily for Reddit post retrieval and posting to discord.
@@ -20,7 +20,7 @@ How it works:
 Other Information:
   Discord.py: https://github.com/Rapptz/discord.py
   Discord.py readthedocs: https://discordpy.readthedocs.io/en/rewrite/index.html
-  Github: https://github.com/Littlemansmg/Pydump-Rewrite
+  Github: https://github.com/Littlemansmg/Pydumpster
 
   Want to learn how to make discord bots in any language?
   Visit r/discord_bots on Reddit, or their Discord guild https://discordapp.com/invite/xRFmHYQ
@@ -36,7 +36,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 
-import fmtjson
+from pyson import Pyson
 
 
 # endregion
@@ -67,6 +67,8 @@ def catchlog(exception):
     # General log for exceptions
     now = dt.now().strftime('%m/%d %H:%M')
     logging.info(f'{now} EXCEPTION CAUGHT: {exception}')
+
+# TODO: server add/remove log
 # endregion
 
 #region -----CHECKS
@@ -78,7 +80,7 @@ def admin_check():
 
 def nopms(ctx):
     # check for no PM's
-    if ctx.message.channel.is_private:
+    if isinstance(ctx.message.channel, discord.abc.PrivateChannel):
         raise commands.NoPrivateMessage
     else:
         return True
@@ -92,8 +94,8 @@ async def my_background_task(guild):
     :param guild:
     :return:
     """
-    while not bot.is_closed and guild in data.keys():
-        delay = data[guild]['delay']
+    while not bot.is_closed() and guild in jfile.data.keys():
+        delay = jfile.data[guild]['delay']
         try:
             await getposts(guild, delay)
             taskcomplete(guild)
@@ -116,25 +118,23 @@ async def getposts(guild, delay):
     """
     now = dt.utcnow()
     # get default posting channel from json file
-    destination = bot.get_channel(data[guild]['default_channel'])
+    default_channel = bot.get_channel(jfile.data[guild]['default_channel'])
 
     # get default nsfw channel
-    nsfw_channel = bot.get_channel(data[guild]['NSFW_channel'])
+    nsfw_channel = bot.get_channel(jfile.data[guild]['NSFW_channel'])
 
     # reddits that the guild is watching
-    reddits = list(data[guild]['watching'])
+    reddits = list(jfile.data[guild]['watching'])
 
     # store nsfw filter
-    nsfwfilter = data[guild]['NSFW_filter']
+    nsfwfilter = jfile.data[guild]['NSFW_filter']
 
     # store channel creation option
-    create = data[guild]['create_channel']
+    create = jfile.data[guild]['create_channel']
 
     # Don't do anything if the bot can't find reddits or a destination.
-    if destination == None:
-        return
-    elif reddits == None:
-        await bot.send(destination, 'I don\'t have any reddits to watch! Type `r/sub <subreddit>` '
+    if reddits == None:
+        await default_channel.send('I don\'t have any reddits to watch! Type `r/sub <subreddit>` '
                                             'to start getting posts!')
         return
 
@@ -157,15 +157,15 @@ async def getposts(guild, delay):
             # send to default channels respectively
             if images:
                 for image in images:
-                    await bot.send(destination, f'From r/{reddit} {image}')
+                    await default_channel.send(f'From r/{reddit} {image}')
                     await asyncio.sleep(1.5)  # try to prevent the ratelimit from being reached.
             if nsfwimages:
                 for image in nsfwimages:
-                    await bot.send(nsfw_channel, f'From r/{reddit} {image}')
+                    await nsfw_channel.send(f'From r/{reddit} {image}')
                     await asyncio.sleep(1.5)
         elif create == 1 and images:
             # send to channels labled for reddits
-            sendto = await createchannel(reddit, data[guild]['id'])
+            sendto = await createchannel(reddit, jfile.data[guild]['id'])
             await bot.send(sendto, '\n'.join(images))
 
 async def respcheck(url):
@@ -202,29 +202,29 @@ async def offjoin(guilds):
     :return:
     """
     for guild in guilds:
-        if not guild.id in data.keys():
-            data.update(
-                {guild.id: {
+        if not str(guild.id) in jfile.data.keys():
+            jfile.data[str(guild.id)] = {
                     'default_channel': guild.owner.id,
-                    'NSFW_channel': '',
+                    'NSFW_channel': 0,
                     'id': guild.id,
                     'watching': [],
                     'NSFW_filter': 1,
                     'create_channel': 0,
                     'delay': 300
-                }
-                }
-            )
-            fmtjson.edit_json('options', data)
+            }
 
-            await bot.send(guild.owner, 'Thanks for adding me to the guild! There are a few things I need '
-                                                 'from you or your admins to get running though.\n'
-                                                 'In the discord guild(NOT HERE),Please set the default channel for me to '
-                                                 'post in, or turn on the option for me to create a channel for each '
-                                                 'subreddit. `r/default channel general` or `r/default create`\n'
-                                                 'Right now I have the default channel set to PM you, so *I would '
-                                                 'suggest changing this*. After that, you or your admins '
-                                                 'can run `r/sub funny` and let the posts flow in!')
+
+            jfile.save
+
+            await guild.owner.send('Thanks for adding me to the guild! There are a few things I need '
+                                                'from you or your admins to get running though.\n'
+                                                'In the discord guild(NOT HERE),Please set the default channel for '
+                                                'me to post in, or turn on the option for me to create a channel '
+                                                'for each subreddit. `r/default channel general` or '
+                                                '`r/default create`\n'
+                                                'Right now I have the default channel set to PM you, so ***I would '
+                                                'suggest changing this***. After that, you or your admins '
+                                                'can run `r/sub funny` and let the posts flow in!')
 
 async def offremove(guilds):
     """
@@ -237,14 +237,14 @@ async def offremove(guilds):
     for guild in guilds:
         guildlist.append(guild.id)
 
-    for key in data:
+    for key in jfile.data:
         if not key in guildlist:
             removed.append(key)
 
     if removed:
         for guild in removed:
-            data.pop(guild, None)
-        fmtjson.edit_json('options', data)
+            jfile.data.pop(guild, None)
+        jfile.save
 
 async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
     """
@@ -284,9 +284,7 @@ async def createchannel(reddit, guild):
     sendto = discord.utils.get(bot.get_all_channels(), name=reddit.lower(), guild__id=guild)
 
     if sendto is None:
-        await guild.create_text_channel(
-            bot.get_guild(guild), name=reddit.lower(), type=discord.ChannelType.text
-        )
+        await guild.create_text_channel(name=reddit.lower())
         await asyncio.sleep(5)  # sleep so that the bot has a chance to see the channel
         sendto = discord.utils.get(
             bot.get_all_channels(), name=reddit.lower(), guild__id=guild
@@ -298,14 +296,15 @@ async def restart_task(sid):
 # endregion
 
 # region -----BOT CONTENT
-bot = commands.Bot(command_prefix = 'r/')
+bot = commands.Bot(command_prefix = 'rd/', case_insensitive = True, owner_id = 179050708908113920)
 # Check to prevent user from trying to use commands in a PM
 bot.add_check(nopms)
 
 # region -----EVENTS
 @bot.event
 async def on_ready():
-    await bot.change_presence(game=discord.Game(name='Type r/help for help'))
+    game = discord.Game("Type rd/help for help")
+    await bot.change_presence(activity = game)
     await offjoin(bot.guilds)
     await offremove(bot.guilds)
     # create tasks for each guild connected.
@@ -318,7 +317,7 @@ async def on_guild_join(guild):
     When the bot joins a guild, it will set defaults in the json file and pull all info it needs.
     defaults:
         default channel == 'guild owner'
-        nsfw channel == ''
+        nsfw channel == 0
         id == guild id
         delay == 300 (5 minutes)
         nsfw filter == 1
@@ -328,7 +327,7 @@ async def on_guild_join(guild):
     :return:
     """
 
-    data.update(
+    jfile.data.update(
         {guild.id: {
             'default_channel': guild.owner.id,
             'NSFW_channel': 0,
@@ -340,17 +339,17 @@ async def on_guild_join(guild):
             }
         }
     )
-    fmtjson.edit_json('options', data)
+    jfile.save
 
     # message owner about bot usage.
-    await bot.send(guild.owner, 'Thanks for adding me to the guild! There are a few things I need '
-                                         'from you or your admins to get running though.\n'
-                                         'In the discord guild(NOT HERE),Please set the default channel for me to '
-                                         'post in, or turn on the option for me to create a channel for each '
-                                         'subreddit. `r/default channel general` or `r/default create`\n'
-                                         'Right now I have the default channel set to PM you, so *I would '
-                                         'suggest changing this*. After that, you or your admins '
-                                         'can run `r/sub funny` and let the posts flow in!')
+    await guild.owner.send('Thanks for adding me to the guild! There are a few things I need '
+                           'from you or your admins to get running though.\n'
+                           'In the discord guild(NOT HERE),Please set the default channel for me to '
+                           'post in, or turn on the option for me to create a channel for each '
+                           'subreddit. `r/default channel general` or `r/default create`\n'
+                           'Right now I have the default channel set to PM you, so *I would '
+                           'suggest changing this*. After that, you or your admins '
+                           'can run `r/sub funny` and let the posts flow in!')
 
     # create new task for the guild
     asyncio.ensure_future(my_background_task(guild.id))
@@ -362,33 +361,35 @@ async def on_guild_remove(guild):
     :param guild:
     :return:
     """
-    data.pop(guild.id, None)
-    fmtjson.edit_json("options", data)
+    jfile.data.pop(guild.id, None)
+    jfile.save
 
 @bot.event
-async def on_command_error(error, ctx):
+async def on_command_error(ctx, error):
     # when error is raised, this is what happens.
     if isinstance(error, commands.NoPrivateMessage):
-        await bot.send(ctx.message.channel, 'Stop it, You can\'t use me in a PM. Go into a guild.')
+        await ctx.message.delete()
+        await ctx.send('Stop it, You can\'t use me in a PM. Go into a guild.')
         catchlog(error)
 
     if isinstance(error, commands.CommandInvokeError):
-        await bot.send(ctx.message.channel, 'You messed up the command. Make sure you are doing it right, '
-                                                    'and you are in a discord guild I\'m on.')
+        await ctx.message.delete()
+        await ctx.send('You messed up the command. Make sure you are doing it right, '
+                       'and you are in a discord guild I\'m on.')
         catchlog(error)
 
     if isinstance(error, commands.CommandNotFound):
         await ctx.message.delete()
-        await bot.send(ctx.message.channel, 'Either you didn\'t type a proper command, or you did'
-                                                    'but you added a capital letter somewhere. All commands are '
-                                                    'lowercase.')
+        await ctx.send('Either you didn\'t type a proper command, or you did'
+                       'but you added a capital letter somewhere. All commands are '
+                       'lowercase.')
         catchlog(error)
 # endregion
 
 # region -----COMMANDS
 
 # region -----DEFAULT COMMAND GROUP
-@bot.group(pass_context = True, name = 'default')
+@bot.group(name = 'default', case_insensitive = True)
 @admin_check()
 async def setDefaults(ctx):
     """
@@ -403,7 +404,7 @@ async def setDefaults(ctx):
         ctx.message.content = ctx.prefix + 'help ' + ctx.invoked_with
         await bot.process_commands(ctx.message)
 
-@setDefaults.command(pass_context = True, name = 'channel')
+@setDefaults.command(name = 'channel')
 @admin_check()
 async def defaultChannel(ctx, channel):
     """
@@ -420,14 +421,14 @@ async def defaultChannel(ctx, channel):
         raise commands.CommandInvokeError
 
     sid = ctx.message.guild.id
-    data[sid]['default_channel'] = newchannel.id
-    await bot.say(f"Default channel changed to {newchannel.mention}\n"
+    jfile.data[sid]['default_channel'] = newchannel.id
+    await ctx.send(f"Default channel changed to {newchannel.mention}\n"
                   f"You will notice this change when I scour reddit again.")
-    fmtjson.edit_json('options', data)
+    jfile.save
 
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'nsfwchannel')
+@setDefaults.command(name = 'nsfwchannel')
 @admin_check()
 async def defaultChannel(ctx, channel):
     """
@@ -444,14 +445,14 @@ async def defaultChannel(ctx, channel):
         raise commands.CommandInvokeError
 
     sid = ctx.message.guild.id
-    data[sid]['NSFW_channel'] = newchannel.id
-    await bot.say(f"NSFW default channel changed to {newchannel.mention}\n"
-                  f"You will notice this change when I scour reddit again.")
-    fmtjson.edit_json('options', data)
+    jfile.data[sid]['NSFW_channel'] = newchannel.id
+    await ctx.send(f"NSFW default channel changed to {newchannel.mention}\n"
+                   f"You will notice this change when I scour reddit again.")
+    jfile.save
 
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'delay')
+@setDefaults.command(name = 'delay')
 @admin_check()
 async def defaulttime(ctx, time):
     """
@@ -466,30 +467,30 @@ async def defaulttime(ctx, time):
     """
     sid = ctx.message.guild.id
     if time == '5m':
-        data[sid]['delay'] = 300
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 300
+        await ctx.send(f'The delay has changed to {time}.')
     elif time == '10m':
-        data[sid]['delay'] = 600
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 600
+        await ctx.send(f'The delay has changed to {time}.')
     elif time == '15m':
-        data[sid]['delay'] = 900
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 900
+        await ctx.send(f'The delay has changed to {time}.')
     elif time == '30m':
-        data[sid]['delay'] = 1800
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 1800
+        await ctx.send(f'The delay has changed to {time}.')
     elif time == '45m':
-        data[sid]['delay'] = 2700
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 2700
+        await ctx.send(f'The delay has changed to {time}.')
     elif time == '1h':
-        data[sid]['delay'] = 3600
-        await bot.say(f'The delay has changed to {time}.')
+        jfile.data[sid]['delay'] = 3600
+        await ctx.send(f'The delay has changed to {time}.')
     else:
-        await bot.say('Sorry time must be 5m/10m/15m/30m/45m/1h')
+        await ctx.send('Sorry time must be 5m/10m/15m/30m/45m/1h')
 
-    fmtjson.edit_json('options', data)
+    jfile.save
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'nsfw')
+@setDefaults.command(name = 'nsfw')
 @admin_check()
 async def nsfwFilter(ctx):
     '''
@@ -500,19 +501,19 @@ async def nsfwFilter(ctx):
     :return:
     '''
     sid = ctx.message.guild.id
-    if data[sid]['NSFW_filter'] == 1:
+    if jfile.data[sid]['NSFW_filter'] == 1:
         data[sid]['NSFW_filter'] = 0
-        await bot.say("NSFW filter has been TURNED OFF. Enjoy your sinful images, loser. Also be sure"
-                      "to label your default channel or the NSFW reddit channels as NSFW channels.")
+        await ctx.send("NSFW filter has been TURNED OFF. Enjoy your sinful images, loser. Also be sure"
+                       "to label your default channel or the NSFW reddit channels as NSFW channels.")
     else:
-        data[sid]['NSFW_filter'] = 1
-        await bot.say("NSFW filter has been TURNED ON. I really don't like looking for those "
-                      "images.")
-    fmtjson.edit_json('options', data)
+        jfile.data[sid]['NSFW_filter'] = 1
+        await ctx.send("NSFW filter has been TURNED ON. I really don't like looking for those "
+                       "images.")
+    jfile.save
 
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'create')
+@setDefaults.command(name = 'create')
 @admin_check()
 async def createChannels(ctx):
     '''
@@ -523,19 +524,19 @@ async def createChannels(ctx):
     :return:
     '''
     sid = ctx.message.guild.id
-    if data[sid]['create_channel'] == 1:
-        data[sid]['create_channel'] = 0
-        await bot.say("Creating channels has been TURNED OFF. I will now make all of my posts in "
-                      "your default channel.")
+    if jfile.data[sid]['create_channel'] == 1:
+        jfile.data[sid]['create_channel'] = 0
+        await ctx.send("Creating channels has been TURNED OFF. I will now make all of my posts in "
+                       "your default channel.")
     else:
-        data[sid]['create_channel'] = 1
-        await bot.say("Creating channels has been TURNED ON. I can now create channels for each reddit "
-                      "that you are watching.")
-    fmtjson.edit_json('options', data)
+        jfile.data[sid]['create_channel'] = 1
+        await ctx.send("Creating channels has been TURNED ON. I can now create channels for each reddit "
+                       "that you are watching.")
+    jfile.save
 
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'show')
+@setDefaults.command(name = 'show')
 async def showDefaults(ctx):
     '''
     This command will show all defaults for the guild.
@@ -544,34 +545,35 @@ async def showDefaults(ctx):
     :return:
     '''
     sid = ctx.message.guild.id
-    if sid in data.keys():
-        channel = bot.get_channel(data[sid]['default_channel'])
-        nsfwchannel = bot.get_channel(data[sid]['NSFW_channel'])
+    sid = str(sid)
+    if sid in jfile.data.keys():
+        channel = bot.get_channel(jfile.data[sid]['default_channel'])
+        nsfwchannel = bot.get_channel(jfile.data[sid]['NSFW_channel'])
 
         if not nsfwchannel:
             nsfwchannel = 'Nowhere'
 
-        delay = data[sid]['delay']
+        delay = jfile.data[sid]['delay']
 
-        if data[sid]['NSFW_filter'] == 0:
+        if jfile.data[sid]['NSFW_filter'] == 0:
             nsfw = 'OFF'
         else:
             nsfw = 'ON'
 
-        if data[sid]['create_channel'] == 0:
+        if jfile.data[sid]['create_channel'] == 0:
             create = 'OFF'
         else:
             create = 'ON'
 
-        await bot.say(f"Default channel: {channel}\n"
-                      f"Default NSFW channel: {nsfwchannel}\n"
-                      f"Delay between posting: {delay} Seconds\n"
-                      f"NSFW filter: {nsfw}\n"
-                      f"Create channels: {create}")
+        await ctx.send(f"Default channel: {channel}\n"
+                       f"Default NSFW channel: {nsfwchannel}\n"
+                       f"Delay between posting: {delay} Seconds\n"
+                       f"NSFW filter: {nsfw}\n"
+                       f"Create channels: {create}")
 
     changedefault(ctx)
 
-@setDefaults.command(pass_context = True, name = 'all')
+@setDefaults.command(name = 'all')
 @admin_check()
 async def defaultall(ctx):
     """
@@ -582,20 +584,20 @@ async def defaultall(ctx):
     :return:
     """
     sid = ctx.message.guild.id
-    data[sid]['default_channel'] = ctx.message.guild.owner.id
-    data[sid]['NSFW_channel'] = ''
-    data[sid]['delay'] = 300
-    data[sid]['NSFW_filter'] = 1
-    data[sid]['create_channel'] = 0
-    data[sid]['watching'] = []
-    fmtjson.edit_json('options', data)
-    await bot.say('All options have been set to their default. Default channel is the guild owner, so please use'
-                  '`r/default channel <channel name>` EX.`r/default channel general`')
+    jfile.data[sid]['default_channel'] = ctx.message.guild.owner.id
+    jfile.data[sid]['NSFW_channel'] = 0
+    jfile.data[sid]['delay'] = 300
+    jfile.data[sid]['NSFW_filter'] = 1
+    jfile.data[sid]['create_channel'] = 0
+    jfile.data[sid]['watching'] = []
+    jfile.save
+    await ctx.send('All options have been set to their default. Default channel is the guild owner, so please use'
+                   '`r/default channel <channel name>` EX.`r/default channel general`')
 
 # endregion
 
 # region -----ABOUT COMMAND GROUP
-@bot.group(pass_context = True, name = 'about')
+@bot.group(name = 'about', case_insensitive = True)
 async def about(ctx):
     """
     Base command for all about commands.
@@ -607,7 +609,7 @@ async def about(ctx):
         ctx.message.content = ctx.prefix + 'help ' + ctx.invoked_with
         await bot.process_commands(ctx.message)
 
-@about.command(pass_context = True, name = 'bot')
+@about.command(name = 'bot')
 async def botabout(ctx):
     """
     About the bot.
@@ -615,16 +617,16 @@ async def botabout(ctx):
     :param ctx:
     :return:
     """
-    await bot.say('```'
-                  'This is a bot developed by LittlemanSMG in python using discord.py v0.16.12\n'
-                  'I use a standard json file to store ID\'s and all the options for each guild.\n'
-                  'Code is free to use/look at, following the MIT lisence at '
-                  'www.github.com/littlemansmg/pydump-rewrite \n'
-                  'Have any recommendations for/issues with the bot? Open up an Issue on github!\n'
-                  '```')
+    await ctx.send('```'
+                   'This is a bot developed by LittlemanSMG in python using discord.py v0.16.12\n'
+                   'I use a standard json file to store ID\'s and all the options for each guild.\n'
+                   'Code is free to use/look at, following the MIT lisence at '
+                   'www.github.com/littlemansmg/pydump-rewrite \n'
+                   'Have any recommendations for/issues with the bot? Open up an Issue on github!\n'
+                   '```')
     commandinfo(ctx)
 
-@about.command(pass_context = True, name = 'dev')
+@about.command(name = 'dev')
 async def devabout(ctx):
     """
     About the Developer
@@ -632,23 +634,23 @@ async def devabout(ctx):
     :param ctx:
     :return:
     """
-    await bot.say('```'
-                  "I really don't feel like I need this, but here it is. I'm Scott 'LittlemanSMG' Goes, and"
-                  "I made this bot, with some help from the r/discord_bots discord. Originally, this bot was "
-                  "made using Praw, a reddit api wrapper, but ran into some massive blocking issues. There was so many"
-                  "issues that I had to remake the bot using aiohttp and it's a much better bot now. "
-                  "mee6 has this kind of functionality, but I didn't want to deal with all of mee6. I just wanted "
-                  "the reddit portion. The original intention was to streamline my meme consumption, but "
-                  "I realised that this bot could be used for more than just memes. All of my work is currently "
-                  "on github(www.github.com/littlemansmg). It isn't much because i'm still learning, "
-                  "but I am getting better.\n"
-                  "```")
+    await ctx.send('```'
+                   "I really don't feel like I need this, but here it is. I'm Scott 'LittlemanSMG' Goes, and"
+                   "I made this bot, with some help from the r/discord_bots discord. Originally, this bot was "
+                   "made using Praw, a reddit api wrapper, but ran into some massive blocking issues. There was so many"
+                   "issues that I had to remake the bot using aiohttp and it's a much better bot now. "
+                   "mee6 has this kind of functionality, but I didn't want to deal with all of mee6. I just wanted "
+                   "the reddit portion. The original intention was to streamline my meme consumption, but "
+                   "I realised that this bot could be used for more than just memes. All of my work is currently "
+                   "on github(www.github.com/littlemansmg). It isn't much because i'm still learning, "
+                   "but I am getting better.\n"
+                   "```")
     commandinfo(ctx)
 # endregion
 
 # region -----OTHER COMMANDS
 
-@bot.command(pass_context = True, name = 'sub')
+@bot.command(name = 'sub')
 @admin_check()
 async def subscribe(ctx, *subreddit):
     """
@@ -661,7 +663,7 @@ async def subscribe(ctx, *subreddit):
     :return:
     """
     sid = ctx.message.guild.id
-    subs = data[sid]['watching']
+    subs = jfile.data[sid]['watching']
     added = []
     for reddit in subreddit:
         url = f"https://www.reddit.com/r/{reddit}/new/.json"
@@ -669,24 +671,24 @@ async def subscribe(ctx, *subreddit):
 
         if posts:
             if reddit.lower() in subs:
-                await bot.say(f'{reddit} is already in your list!')
+                await ctx.send(f'{reddit} is already in your list!')
                 continue
             else:
                 subs.append(reddit.lower())
                 added.append(reddit.lower())
         else:
-            await bot.say(f'Sorry, I can\'t reach {reddit}. '
-                          f'Check your spelling or make sure that the reddit actually exists.')
+            await ctx.send(f'Sorry, I can\'t reach {reddit}. '
+                           f'Check your spelling or make sure that the reddit actually exists.')
     if added:
-        data[sid]['watching'] = subs
-        await bot.say(f"Subreddit(s): {', '.join(added)} added!\n"
-                      f"You will notice this change when I scour reddit again.")
+        jfile.data[sid]['watching'] = subs
+        await ctx.send(f"Subreddit(s): {', '.join(added)} added!\n"
+                       f"You will notice this change when I scour reddit again.")
 
-        fmtjson.edit_json('options', data)
+        jfile.save
 
     commandinfo(ctx)
 
-@bot.command(pass_context = True, name = 'unsub')
+@bot.command(name = 'unsub')
 @admin_check()
 async def unsub(ctx, *subreddit):
     """
@@ -699,24 +701,24 @@ async def unsub(ctx, *subreddit):
     :return:
     """
     sid = ctx.message.guild.id
-    subs = data[sid]['watching']
+    subs = jfile.data[sid]['watching']
     removed = []
     for reddit in subreddit:
         if reddit in subs:
             subs.remove(reddit.lower())
             removed.append(reddit.lower())
         else:
-            await bot.say(f'Subreddit: {reddit} not found. Please make sure you are spelling'
-                          f' it correctly.')
+            await ctx.send(f'Subreddit: {reddit} not found. Please make sure you are spelling'
+                           f' it correctly.')
     if removed:
-        data[sid]['watching'] = subs
-        await bot.say(f"Subreddit(s): {', '.join(removed)} removed!\n"
-                      f"You will notice this change when I scour reddit again.")
-        fmtjson.edit_json('options', data)
+        jfile.data[sid]['watching'] = subs
+        await ctx.send(f"Subreddit(s): {', '.join(removed)} removed!\n"
+                       f"You will notice this change when I scour reddit again.")
+        jfile.save
 
     commandinfo(ctx)
 
-@bot.command(pass_context = True, name = 'removeall')
+@bot.command(name = 'removeall')
 async def removeall(ctx):
     """
     This command will "unsubscribe" from all reddits.
@@ -726,11 +728,11 @@ async def removeall(ctx):
     :return:
     """
     sid = ctx.message.guild.id
-    data[sid]['watching'] = []
-    fmtjson.edit_json('options', data)
-    await bot.say('You are no longer subbed to any subreddits! Please don\'t get rid of me. :[')
+    jfile.data[sid]['watching'] = []
+    jfile.save
+    await ctx.send('You are no longer subbed to any subreddits! Please don\'t get rid of me. :[')
 
-@bot.command(pass_context = True, name = 'listsubs')
+@bot.command(name = 'listsubs')
 async def listsubs(ctx):
     """
     Shows a list of subreddits that the bot is subscribed to on a guild.
@@ -739,23 +741,18 @@ async def listsubs(ctx):
     :return:
     """
     sid = ctx.message.guild.id
-    subs = data[sid]['watching']
+    subs = jfile.data[sid]['watching']
     strsub = ''
     if not subs:
-        await bot.say('This guild isn\'t subbed to anything. Have an adminstrator type '
-                      '`r/sub <subreddit name>` to sub. EX `r/sub funny`')
+        await ctx.send('This guild isn\'t subbed to anything. Have an adminstrator type '
+                       '`r/sub <subreddit name>` to sub. EX `r/sub funny`')
     else:
         for sub in subs:
             strsub += f'r/{sub}\n'
 
-        await bot.say(f"This guild is subbed to:\n{strsub}")
+        await ctx.send(f"This guild is subbed to:\n{strsub}")
 
     commandinfo(ctx)
-
-@bot.command(pass_context = True, name = 'fuckmeupfam', hidden = True, disabled = True)
-@admin_check()
-async def fuckmeupfam(ctx):
-    await bot.close()
 # endregion
 
 # endregion
@@ -773,7 +770,7 @@ if __name__ == '__main__':
                         level=logging.INFO)
 
     try:
-        data = fmtjson.read_json('options')
+        jfile = Pyson('options.json')
     except Exception as e:
         catchlog(e)
 
