@@ -28,6 +28,7 @@ Other Information:
 
 # region -----IMPORTS
 import asyncio
+import sys
 
 import logging
 from datetime import datetime as dt
@@ -159,6 +160,9 @@ async def getposts(guild, delay):
         if create == 0:
             # send to default channels respectively
             if images:
+                if nsfw is True:
+                    default_channel.edit(nsfw = True)
+
                 for image in images:
                     await default_channel.send(f'From r/{reddit} {image}')
                     await asyncio.sleep(1.5)  # try to prevent the ratelimit from being reached.
@@ -775,7 +779,7 @@ async def listsubs(ctx):
 
     commandinfo(ctx)
 
-@bot.command(name = 'fuck')
+@bot.command(name = 'fuck', hidden = True, diabled = True)
 @admin_check()
 async def turnoff(ctx):
     await bot.close()
@@ -788,8 +792,7 @@ async def turnoff(ctx):
 # region -----STARTUP
 if __name__ == '__main__':
     # get token
-    with open('token.txt') as token:
-        token = token.readline()
+    token = sys.argv[1]
 
     # Start Logging
     logging.basicConfig(handlers=[logging.FileHandler('discord.log', 'a', 'utf-8')],
@@ -802,7 +805,7 @@ if __name__ == '__main__':
 
     # run bot/start loop
     try:
-        bot.loop.run_until_complete(bot.run(token.strip()))
+        bot.loop.run_until_complete(bot.run(token))
     except Exception as e:
         catchlog(e)
 # endregion
