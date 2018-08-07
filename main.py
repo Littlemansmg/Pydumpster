@@ -38,7 +38,6 @@ from discord.ext import commands
 
 from pyson import Pyson
 
-
 # endregion
 
 # region -----LOGS
@@ -94,17 +93,17 @@ async def my_background_task(guild):
     :param guild:
     :return:
     """
-    while not bot.is_closed() and guild in jfile.data.keys():
-        delay = jfile.data[guild]['delay']
+    while not bot.is_closed() and str(guild.id) in jfile.data.keys():
+        gid = str(guild.id)
+        delay = jfile.data[gid]['delay']
         try:
             await getposts(guild, delay)
-            taskcomplete(guild)
+            taskcomplete(guild.id)
             await asyncio.sleep(delay)
         except discord.HTTPException:
             task = asyncio.Task.current_task()
             task.cancel()
             restart_task(guild)
-
 # endregion
 
 # region -----OTHER-FUNCTIONS
@@ -117,25 +116,29 @@ async def getposts(guild, delay):
     :return:
     """
     now = dt.utcnow()
+    gid = str(guild.id)
     # get default posting channel from json file
-    default_channel = bot.get_channel(jfile.data[guild]['default_channel'])
+    default_channel = guild.get_channel(jfile.data[gid]['default_channel'])
 
     # get default nsfw channel
-    nsfw_channel = bot.get_channel(jfile.data[guild]['NSFW_channel'])
+    nsfw_channel = guild.get_channel(jfile.data[gid]['NSFW_channel'])
 
     # reddits that the guild is watching
-    reddits = list(jfile.data[guild]['watching'])
+    reddits = list(jfile.data[gid]['watching'])
 
     # store nsfw filter
-    nsfwfilter = jfile.data[guild]['NSFW_filter']
+    nsfwfilter = jfile.data[gid]['NSFW_filter']
 
     # store channel creation option
-    create = jfile.data[guild]['create_channel']
+    create = jfile.data[gid]['create_channel']
 
     # Don't do anything if the bot can't find reddits or a destination.
-    if reddits == None:
+    if default_channel is None:
+        return
+
+    if reddits is None:
         await default_channel.send('I don\'t have any reddits to watch! Type `r/sub <subreddit>` '
-                                            'to start getting posts!')
+                                   'to start getting posts!')
         return
 
     for reddit in reddits:
@@ -146,7 +149,7 @@ async def getposts(guild, delay):
         if not posts:
             continue
 
-        images, nsfwimages = await appendimages(posts, now, delay, nsfwfilter, nsfw_channel)
+        images, nsfwimages, nsfw = await appendimages(posts, now, delay, nsfwfilter, nsfw_channel)
 
         # This skips to next reddit if no posts are new enough.
         if not images and not nsfwimages:
@@ -165,15 +168,15 @@ async def getposts(guild, delay):
                     await asyncio.sleep(1.5)
         elif create == 1 and images:
             # send to channels labled for reddits
-            sendto = await createchannel(reddit, jfile.data[guild]['id'])
-            await bot.send(sendto, '\n'.join(images))
+            sendto = await createchannel(reddit, guild, nsfw)
+            await sendto.send('\n'.join(images))
 
 async def respcheck(url):
     """
     This function is used to open up the json file from reddit and get the posts.
     It's used in:
     getposts() - Task
-        will continue if no posts are found within 5 minutes
+        will continue if no posts are found within guild delay
     sub - command
         will tell user if a connection has been made, or if a subreddit exists.
     :param url:
@@ -182,13 +185,16 @@ async def respcheck(url):
     posts = []
     try:
         # Try to open connection to reddit with async
-        with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status == 200:  # 200 == good
                     json = await resp.json()
                     posts = json['data']['children']
                     # puts each post into a dict that can be manipulated
                     posts = list(map(lambda p: p['data'], posts))
+                    # Alternate way
+                    # posts = list(type('data',(),p['data'])for p in posts)
+                    # Allows print(data.author
 
     except Exception:
         catchlog("Can't get to reddit. Probably 503 error.")
@@ -203,28 +209,30 @@ async def offjoin(guilds):
     """
     for guild in guilds:
         if not str(guild.id) in jfile.data.keys():
-            jfile.data[str(guild.id)] = {
+            jfile.data.update({
+                str(guild.id): {
                     'default_channel': guild.owner.id,
                     'NSFW_channel': 0,
                     'id': guild.id,
-                    'watching': [],
+                    'delay': 300,
                     'NSFW_filter': 1,
                     'create_channel': 0,
-                    'delay': 300
+                    'watching': []
+                }
             }
-
+            )
 
             jfile.save
 
             await guild.owner.send('Thanks for adding me to the guild! There are a few things I need '
-                                                'from you or your admins to get running though.\n'
-                                                'In the discord guild(NOT HERE),Please set the default channel for '
-                                                'me to post in, or turn on the option for me to create a channel '
-                                                'for each subreddit. `r/default channel general` or '
-                                                '`r/default create`\n'
-                                                'Right now I have the default channel set to PM you, so ***I would '
-                                                'suggest changing this***. After that, you or your admins '
-                                                'can run `r/sub funny` and let the posts flow in!')
+                                   'from you or your admins to get running though.\n'
+                                   'In the discord guild(NOT HERE),Please set the default channel for '
+                                   'me to post in, or turn on the option for me to create a channel '
+                                   'for each subreddit. `r/default channel general` or '
+                                   '`r/default create`\n'
+                                   'Right now I have the default channel set to PM you, so ***I would '
+                                   'suggest changing this***. After that, you or your admins '
+                                   'can run `r/sub funny` and let the posts flow in!')
 
 async def offremove(guilds):
     """
@@ -235,7 +243,7 @@ async def offremove(guilds):
     guildlist = []
     removed = []
     for guild in guilds:
-        guildlist.append(guild.id)
+        guildlist.append(str(guild.id))
 
     for key in jfile.data:
         if not key in guildlist:
@@ -258,41 +266,47 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
     """
     images = []
     nsfwimages = []
+    nsfw = False
     for x in posts:
         posttime = dt.utcfromtimestamp(x['created_utc'])
         # if {delay} can't go into total seconds difference once, it gets added to the list of urls
         if (((now - posttime).total_seconds()) / delay) <= 1:
             if nsfwfilter == 1:
-                if x['over_18'] == True:
+                if x['over_18'] is True:
                     continue
                 else:
                     images.append(x['url'])
             elif nsfwfilter == 0:
-                if x['over_18'] == True and nsfw_channel:
+                if nsfw_channel is not None and x['over_18'] is True:
                     nsfwimages.append(x['url'])
                     continue
                 images.append(x['url'])
-    return (images, nsfwimages)
 
-async def createchannel(reddit, guild):
+    for x in posts:
+        if x['over_18'] is True:
+            nsfw = True
+            break
+    return (images, nsfwimages, nsfw)
+
+async def createchannel(reddit, guild, nsfw):
     """
     Function for creating a channel for each subbed reddit
     :param reddit:
     :param guild:
     :return:
     """
-    sendto = discord.utils.get(bot.get_all_channels(), name=reddit.lower(), guild__id=guild)
+    sendto = discord.utils.get(bot.get_all_channels(), name=reddit.lower(), guild__id=guild.id)
 
     if sendto is None:
         await guild.create_text_channel(name=reddit.lower())
         await asyncio.sleep(5)  # sleep so that the bot has a chance to see the channel
-        sendto = discord.utils.get(
-            bot.get_all_channels(), name=reddit.lower(), guild__id=guild
-        )
+        sendto = discord.utils.get(bot.get_all_channels(), name=reddit.lower(), guild__id=guild.id)
+    if nsfw:
+        await sendto.edit(nsfw = True)
     return sendto
 
-async def restart_task(sid):
-    asyncio.ensure_future(my_background_task(sid))
+async def restart_task(guild):
+    asyncio.ensure_future(my_background_task(guild))
 # endregion
 
 # region -----BOT CONTENT
@@ -309,7 +323,7 @@ async def on_ready():
     await offremove(bot.guilds)
     # create tasks for each guild connected.
     for guild in bot.guilds:
-        asyncio.ensure_future(my_background_task(guild.id))
+        asyncio.ensure_future(my_background_task(guild))
 
 @bot.event
 async def on_guild_join(guild):
@@ -327,18 +341,19 @@ async def on_guild_join(guild):
     :return:
     """
 
-    jfile.data.update(
-        {guild.id: {
-            'default_channel': guild.owner.id,
-            'NSFW_channel': 0,
-            'id': guild.id,
-            'delay': 300,
-            'NSFW_filter': 1,
-            'create_channel': 0,
-            'watching': []
+    jfile.data.update({
+            guild.id: {
+                'default_channel': guild.owner.id,
+                'NSFW_channel': 0,
+                'id': guild.id,
+                'delay': 300,
+                'NSFW_filter': 1,
+                'create_channel': 0,
+                'watching': []
             }
         }
     )
+
     jfile.save
 
     # message owner about bot usage.
@@ -380,9 +395,12 @@ async def on_command_error(ctx, error):
 
     if isinstance(error, commands.CommandNotFound):
         await ctx.message.delete()
-        await ctx.send('Either you didn\'t type a proper command, or you did'
-                       'but you added a capital letter somewhere. All commands are '
-                       'lowercase.')
+        await ctx.send('That\'s not a command.')
+        catchlog(error)
+
+    if isinstance(error, commands.BadArgument):
+        await ctx.message.delete()
+        await ctx.send('Sorry. You provided an argument that doesn\'t quite work.')
         catchlog(error)
 # endregion
 
@@ -394,7 +412,7 @@ async def on_command_error(ctx, error):
 async def setDefaults(ctx):
     """
     Base command to set the options for a guild.
-    Usage: r/default
+    Usage: rd/default
     Permissions required: Administrator
     :param ctx:
     :return:
@@ -406,23 +424,19 @@ async def setDefaults(ctx):
 
 @setDefaults.command(name = 'channel')
 @admin_check()
-async def defaultChannel(ctx, channel):
+async def defaultChannel(ctx, channel: discord.TextChannel=None):
     """
     Set the Default channel for the bot to post in.
-    Usage: r/default channel <channel>
+    Usage: rd/default channel <channel>
     Permissions required: Administrator
     :param ctx:
     :param channel:
     :return:
     """
-    newchannel = discord.utils.get(bot.get_all_channels(), name = channel, guild__id = ctx.message.guild.id)
-
-    if not newchannel:
-        raise commands.CommandInvokeError
-
-    sid = ctx.message.guild.id
-    jfile.data[sid]['default_channel'] = newchannel.id
-    await ctx.send(f"Default channel changed to {newchannel.mention}\n"
+    sid = channel.guild.id
+    sid = str(sid)
+    jfile.data[sid]['default_channel'] = channel.id
+    await ctx.send(f"Default channel changed to {channel.mention}\n"
                   f"You will notice this change when I scour reddit again.")
     jfile.save
 
@@ -430,23 +444,22 @@ async def defaultChannel(ctx, channel):
 
 @setDefaults.command(name = 'nsfwchannel')
 @admin_check()
-async def defaultChannel(ctx, channel):
+async def defaultChannel(ctx, channel: discord.TextChannel=None):
     """
     Set the Default nsfwchannel for the bot to post in.
-    Usage: r/default nsfwchannel <channel>
+    Usage: rd/default nsfwchannel <channel>
     Permissions required: Administrator
     :param ctx:
     :param channel:
     :return:
     """
-    newchannel = discord.utils.get(bot.get_all_channels(), name = channel, guild__id = ctx.message.guild.id)
 
-    if not newchannel:
-        raise commands.CommandInvokeError
+    if channel.is_nsfw() is False:
+        await channel.edit(nsfw = True)
 
-    sid = ctx.message.guild.id
-    jfile.data[sid]['NSFW_channel'] = newchannel.id
-    await ctx.send(f"NSFW default channel changed to {newchannel.mention}\n"
+    sid = str(channel.guild.id)
+    jfile.data[sid]['nsfw_channel'] = channel.id
+    await ctx.send(f"Default nsfwchannel changed to {channel.mention}\n"
                    f"You will notice this change when I scour reddit again.")
     jfile.save
 
@@ -459,13 +472,14 @@ async def defaulttime(ctx, time):
     This command sets the delay of when the bot should post. It will only get 25 posts max, but some reddits are slow
     TIMES MUST BE: 5m/10m/15m/30m/45m/1h
     I have an upper limit of an hour because if it gets more than 25 posts, that would take a very long time.
-    Usage: r/default delay 10m
+    Usage: rd/default delay 10m
     Permissions required: Administrator
     :param ctx:
     :param time:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     if time == '5m':
         jfile.data[sid]['delay'] = 300
         await ctx.send(f'The delay has changed to {time}.')
@@ -495,14 +509,15 @@ async def defaulttime(ctx, time):
 async def nsfwFilter(ctx):
     '''
     Toggles the NSFW filter. DEFAULT: ON
-    Usage: r/default nsfw
+    Usage: rd/default nsfw
     Permissions required: Administrator
     :param ctx:
     :return:
     '''
     sid = ctx.message.guild.id
+    sid = str(sid)
     if jfile.data[sid]['NSFW_filter'] == 1:
-        data[sid]['NSFW_filter'] = 0
+        jfile.data[sid]['NSFW_filter'] = 0
         await ctx.send("NSFW filter has been TURNED OFF. Enjoy your sinful images, loser. Also be sure"
                        "to label your default channel or the NSFW reddit channels as NSFW channels.")
     else:
@@ -518,12 +533,13 @@ async def nsfwFilter(ctx):
 async def createChannels(ctx):
     '''
     Toggles the create channels option. DEFAULT: OFF
-    Usage: r/default create
+    Usage: rd/default create
     Permissions required: Administrator
     :param ctx:
     :return:
     '''
     sid = ctx.message.guild.id
+    sid = str(sid)
     if jfile.data[sid]['create_channel'] == 1:
         jfile.data[sid]['create_channel'] = 0
         await ctx.send("Creating channels has been TURNED OFF. I will now make all of my posts in "
@@ -540,7 +556,7 @@ async def createChannels(ctx):
 async def showDefaults(ctx):
     '''
     This command will show all defaults for the guild.
-    Usage: r/default show
+    Usage: rd/default show
     :param ctx:
     :return:
     '''
@@ -578,12 +594,13 @@ async def showDefaults(ctx):
 async def defaultall(ctx):
     """
     This command sets all options to their default.
-    Usage: r/default all
+    Usage: rd/default all
     Permissions required: Administrator
     :param ctx:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     jfile.data[sid]['default_channel'] = ctx.message.guild.owner.id
     jfile.data[sid]['NSFW_channel'] = 0
     jfile.data[sid]['delay'] = 300
@@ -613,7 +630,7 @@ async def about(ctx):
 async def botabout(ctx):
     """
     About the bot.
-    Usage r/about bot
+    Usage rd/about bot
     :param ctx:
     :return:
     """
@@ -630,7 +647,7 @@ async def botabout(ctx):
 async def devabout(ctx):
     """
     About the Developer
-    Usage: r/about dev
+    Usage: rd/about dev
     :param ctx:
     :return:
     """
@@ -655,14 +672,15 @@ async def devabout(ctx):
 async def subscribe(ctx, *subreddit):
     """
     This command will 'subscribe' to a reddit and will make posts from it.
-    Usage: r/sub <subreddit>
-    Ex. r/sub news funny husky
+    Usage: rd/sub <subreddit>
+    Ex. rd/sub news funny husky
     Permissions required: Administrator
     :param ctx:
     :param subreddit:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     subs = jfile.data[sid]['watching']
     added = []
     for reddit in subreddit:
@@ -693,14 +711,15 @@ async def subscribe(ctx, *subreddit):
 async def unsub(ctx, *subreddit):
     """
     This command will 'unsubscribe' from a reddit and will no longer make posts.
-    Usage: r/unsub <subreddit>
-    Ex. r/unsub news funny husky
+    Usage: rd/unsub <subreddit>
+    Ex. rd/unsub news funny husky
     Permissions required: Administrator
     :param ctx:
     :param subreddit:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     subs = jfile.data[sid]['watching']
     removed = []
     for reddit in subreddit:
@@ -722,12 +741,13 @@ async def unsub(ctx, *subreddit):
 async def removeall(ctx):
     """
     This command will "unsubscribe" from all reddits.
-    Usage: r/removeall
+    Usage: rd/removeall
     Permissions required: Administrator
     :param ctx:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     jfile.data[sid]['watching'] = []
     jfile.save
     await ctx.send('You are no longer subbed to any subreddits! Please don\'t get rid of me. :[')
@@ -736,11 +756,12 @@ async def removeall(ctx):
 async def listsubs(ctx):
     """
     Shows a list of subreddits that the bot is subscribed to on a guild.
-    Usage r/listsubs
+    Usage rd/listsubs
     :param ctx:
     :return:
     """
     sid = ctx.message.guild.id
+    sid = str(sid)
     subs = jfile.data[sid]['watching']
     strsub = ''
     if not subs:
@@ -753,6 +774,11 @@ async def listsubs(ctx):
         await ctx.send(f"This guild is subbed to:\n{strsub}")
 
     commandinfo(ctx)
+
+@bot.command(name = 'fuck')
+@admin_check()
+async def turnoff(ctx):
+    await bot.close()
 # endregion
 
 # endregion

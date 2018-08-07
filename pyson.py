@@ -1,3 +1,7 @@
+"""
+made by StroupBslayen: https://github.com/stroupbslayen/Pyson
+"""
+
 import os
 import json
 
