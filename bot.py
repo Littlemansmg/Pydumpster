@@ -672,6 +672,16 @@ async def devabout(ctx):
                    "but I am getting better.\n"
                    "```")
     commandinfo(ctx)
+
+@about.command(name = 'suggest')
+async def suggest(ctx):
+    """
+    This command returns my github because I don't have a good way to receive suggestions.
+    :param ctx:
+    :return:
+    """
+    await ctx.send('I don\'t have a good way to receive suggestions, so all issues and suggestions are to go '
+                   'to my github: https://github.com/littlemansmg/pydumpster/issues')
 # endregion
 
 # region -----OTHER COMMANDS
