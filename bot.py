@@ -54,7 +54,7 @@ def changedefault(ctx):
     # log when a default has been changed
     now = dt.now().strftime('%m/%d %H:%M')
     logging.info(f'{now} DEFAULT CHANGED; '
-                 f'guild_id: {ctx.message.guild.id} '
+                 f'Guild_id: {ctx.message.guild.id} '
                  f'Author_id: {ctx.message.author.id} '
                  f'Invoke: {ctx.message.content}')
 
@@ -101,7 +101,7 @@ async def my_background_task(guild):
             await getposts(guild, delay)
             taskcomplete(guild.id)
             await asyncio.sleep(delay)
-        except discord.HTTPException:
+        except Exception:
             task = asyncio.Task.current_task()
             task.cancel()
             restart_task(guild)
@@ -318,6 +318,14 @@ bot = commands.Bot(command_prefix = 'rd/', case_insensitive = True, owner_id = 1
 # Check to prevent user from trying to use commands in a PM
 bot.add_check(nopms)
 
+def start_tasks():
+    for guild in bot.guilds:
+        asyncio.ensure_future(my_background_task(guild))
+
+    return
+
+start_tasks()
+
 # region -----EVENTS
 @bot.event
 async def on_ready():
@@ -325,9 +333,6 @@ async def on_ready():
     await bot.change_presence(activity = game)
     await offjoin(bot.guilds)
     await offremove(bot.guilds)
-    # create tasks for each guild connected.
-    for guild in bot.guilds:
-        asyncio.ensure_future(my_background_task(guild))
 
 @bot.event
 async def on_guild_join(guild):
@@ -639,10 +644,10 @@ async def botabout(ctx):
     :return:
     """
     await ctx.send('```'
-                   'This is a bot developed by LittlemanSMG in python using discord.py v0.16.12\n'
+                   'This is a bot developed by LittlemanSMG in python using discord.py v1.0.0(rewrite\n'
                    'I use a standard json file to store ID\'s and all the options for each guild.\n'
                    'Code is free to use/look at, following the MIT lisence at '
-                   'www.github.com/littlemansmg/pydump-rewrite \n'
+                   'www.github.com/littlemansmg/pydumpster \n'
                    'Have any recommendations for/issues with the bot? Open up an Issue on github!\n'
                    '```')
     commandinfo(ctx)
@@ -805,7 +810,7 @@ if __name__ == '__main__':
 
     # run bot/start loop
     try:
-        bot.loop.run_until_complete(bot.run(token))
+        bot.run(token)
     except Exception as e:
         catchlog(e)
 # endregion
