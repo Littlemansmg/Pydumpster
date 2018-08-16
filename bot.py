@@ -311,6 +311,7 @@ async def createchannel(reddit, guild, nsfw):
 
 async def restart_task(guild):
     asyncio.ensure_future(my_background_task(guild))
+    catchlog(f'task restarted for: {guild.id}')
 # endregion
 
 # region -----BOT CONTENT
@@ -318,23 +319,28 @@ bot = commands.Bot(command_prefix = 'rd/', case_insensitive = True, owner_id = 1
 # Check to prevent user from trying to use commands in a PM
 bot.add_check(nopms)
 
-def start_tasks():
-    for guild in bot.guilds:
-        asyncio.ensure_future(my_background_task(guild))
+async def start_tasks(bot):
+    await bot.wait_until_ready()
+    while True:
+        if bot.is_ready():
+            for guild in bot.guilds:
+                asyncio.ensure_future(my_background_task(guild))
+                catchlog(f'task started for: {guild.id}')
+            break
 
-    return
-
-start_tasks()
+asyncio.ensure_future(start_tasks(bot))
 
 # region -----EVENTS
 @bot.event
 async def on_ready():
     game = discord.Game("Type rd/help for help")
     await bot.change_presence(activity = game)
+
     for guild in bot.guilds:
         if str(guild.id) not in jfile.data.keys():
             await guild.leave()
-    
+            continue
+        # asyncio.ensure_future(my_background_task(guild))
     # await offjoin(bot.guilds)
     # await offremove(bot.guilds)
 
