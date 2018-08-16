@@ -331,8 +331,12 @@ start_tasks()
 async def on_ready():
     game = discord.Game("Type rd/help for help")
     await bot.change_presence(activity = game)
-    await offjoin(bot.guilds)
-    await offremove(bot.guilds)
+    for guild in bot.guilds:
+        if str(guild.id) not in jfile.data.keys():
+            await guild.leave()
+    
+    # await offjoin(bot.guilds)
+    # await offremove(bot.guilds)
 
 @bot.event
 async def on_guild_join(guild):
@@ -351,7 +355,7 @@ async def on_guild_join(guild):
     """
 
     jfile.data.update({
-            guild.id: {
+            str(guild.id): {
                 'default_channel': guild.owner.id,
                 'NSFW_channel': 0,
                 'id': guild.id,
@@ -376,7 +380,7 @@ async def on_guild_join(guild):
                            'can run `r/sub funny` and let the posts flow in!')
 
     # create new task for the guild
-    asyncio.ensure_future(my_background_task(guild.id))
+    asyncio.ensure_future(my_background_task(guild))
 
 @bot.event
 async def on_guild_remove(guild):
@@ -385,7 +389,7 @@ async def on_guild_remove(guild):
     :param guild:
     :return:
     """
-    jfile.data.pop(guild.id, None)
+    jfile.data.pop(str(guild.id), None)
     jfile.save
 
 @bot.event
