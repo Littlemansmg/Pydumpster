@@ -38,7 +38,6 @@ import discord
 from discord.ext import commands
 
 from pyson import Pyson
-
 # endregion
 
 # region -----LOGS
@@ -87,7 +86,6 @@ def nopms(ctx):
 # endregion
 
 # region -----TASKS
-
 async def my_background_task(guild):
     """
     This task creates a seperate loop for each guild it's connected to.
@@ -101,10 +99,9 @@ async def my_background_task(guild):
             await getposts(guild, delay)
             taskcomplete(guild.id)
             await asyncio.sleep(delay)
-        except Exception:
-            task = asyncio.Task.current_task()
-            task.cancel()
-            restart_task(guild)
+        except Exception as e:
+            catchlog(e)
+
 # endregion
 
 # region -----OTHER-FUNCTIONS
@@ -132,6 +129,8 @@ async def getposts(guild, delay):
 
     # store channel creation option
     create = jfile.data[gid]['create_channel']
+    if create == 1:
+        nsfw_channel = None
 
     # Don't do anything if the bot can't find reddits or a destination.
     if default_channel is None:
@@ -161,19 +160,25 @@ async def getposts(guild, delay):
             # send to default channels respectively
             if images:
                 if nsfw is True:
-                    default_channel.edit(nsfw = True)
+                    await default_channel.edit(nsfw = True)
 
                 for image in images:
-                    await default_channel.send(f'From r/{reddit} {image}')
+                    embed = await embedmaker(image, images)
+                    await default_channel.send(embed = embed)
                     await asyncio.sleep(1.5)  # try to prevent the ratelimit from being reached.
+
             if nsfwimages:
                 for image in nsfwimages:
-                    await nsfw_channel.send(f'From r/{reddit} {image}')
+                    embed = await embedmaker(image, nsfwimages)
+                    await nsfw_channel.send(embed = embed)
                     await asyncio.sleep(1.5)
+
         elif create == 1 and images:
             # send to channels labled for reddits
             sendto = await createchannel(reddit, guild, nsfw)
-            await sendto.send('\n'.join(images))
+            for image in images:
+                embed = await embedmaker(image, images)
+                await sendto.send(embed = embed)
 
 async def respcheck(url):
     """
@@ -187,8 +192,8 @@ async def respcheck(url):
     :return:
     """
     posts = []
+    # Try to open connection to reddit with async
     try:
-        # Try to open connection to reddit with async
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status == 200:  # 200 == good
@@ -201,7 +206,7 @@ async def respcheck(url):
                     # Allows print(data.author
 
     except Exception:
-        catchlog("Can't get to reddit. Probably 503 error.")
+        catchlog(f"Response Failure code {resp.status}")
 
     return posts
 
@@ -232,11 +237,11 @@ async def offjoin(guilds):
                                    'from you or your admins to get running though.\n'
                                    'In the discord guild(NOT HERE),Please set the default channel for '
                                    'me to post in, or turn on the option for me to create a channel '
-                                   'for each subreddit. `r/default channel general` or '
+                                   'for each subreddit. `rd/default channel general` or '
                                    '`r/default create`\n'
                                    'Right now I have the default channel set to PM you, so ***I would '
                                    'suggest changing this***. After that, you or your admins '
-                                   'can run `r/sub funny` and let the posts flow in!')
+                                   'can run `rd/sub funny` and let the posts flow in!')
 
 async def offremove(guilds):
     """
@@ -268,8 +273,8 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
     :param nsfw_channel:
     :return:
     """
-    images = []
-    nsfwimages = []
+    images = {}
+    nsfwimages = {}
     nsfw = False
     for x in posts:
         posttime = dt.utcfromtimestamp(x['created_utc'])
@@ -279,12 +284,36 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
                 if x['over_18'] is True:
                     continue
                 else:
-                    images.append(x['url'])
+                    images.update({
+                        x['id']: {
+                            'title': x['title'],
+                            'author': x['author'],
+                            'url': x['url'],
+                            'permalink': x['permalink'],
+                            'subreddit': x['subreddit']
+                        }
+                    })
             elif nsfwfilter == 0:
                 if nsfw_channel is not None and x['over_18'] is True:
-                    nsfwimages.append(x['url'])
+                    nsfwimages.update({
+                        x['id']: {
+                            'title': x['title'],
+                            'author': x['author'],
+                            'url': x['url'],
+                            'permalink': x['permalink'],
+                            'subreddit': x['subreddit']
+                        }
+                    })
                     continue
-                images.append(x['url'])
+                images.update({
+                        x['id']: {
+                            'title': x['title'],
+                            'author': x['author'],
+                            'url': x['url'],
+                            'permalink': x['permalink'],
+                            'subreddit': x['subreddit']
+                        }
+                    })
 
     for x in posts:
         if x['over_18'] is True:
@@ -308,6 +337,20 @@ async def createchannel(reddit, guild, nsfw):
     if nsfw:
         await sendto.edit(nsfw = True)
     return sendto
+
+async def embedmaker(id, dictionary):
+    embed = discord.Embed(
+        title=dictionary[id]['title'],
+        url=f"https://www.reddit.com{dictionary[id]['permalink']}",
+        color=discord.Color.from_rgb(255, 69, 0)
+    )
+    embed.set_author(
+        name=dictionary[id]['author'],
+        url=f"https://www.reddit.com/u/{dictionary[id]['author']}"
+    )
+    embed.set_image(url=dictionary[id]['url'])
+    embed.set_footer(text=f"https://www.reddit.com/r/{dictionary[id]['subreddit']}")
+    return embed
 
 async def restart_task(guild):
     asyncio.ensure_future(my_background_task(guild))
@@ -477,7 +520,7 @@ async def defaultChannel(ctx, channel: discord.TextChannel=None):
         await channel.edit(nsfw = True)
 
     sid = str(channel.guild.id)
-    jfile.data[sid]['nsfw_channel'] = channel.id
+    jfile.data[sid]['NSFW_channel'] = channel.id
     await ctx.send(f"Default nsfwchannel changed to {channel.mention}\n"
                    f"You will notice this change when I scour reddit again.")
     jfile.save
@@ -567,6 +610,8 @@ async def createChannels(ctx):
         jfile.data[sid]['create_channel'] = 1
         await ctx.send("Creating channels has been TURNED ON. I can now create channels for each reddit "
                        "that you are watching.")
+
+    # jfile.data[sid]['NSFW_channel'] = 0
     jfile.save
 
     changedefault(ctx)
@@ -804,10 +849,31 @@ async def listsubs(ctx):
 
     commandinfo(ctx)
 
-@bot.command(name = 'fuck', hidden = True, diabled = True)
-@admin_check()
+@bot.command(name = 'fuck', hidden = True)
+@commands.is_owner()
 async def turnoff(ctx):
     await bot.close()
+
+@bot.command(name = 'update', hidden = True)
+@commands.is_owner()
+async def update(ctx, title, *message):
+    for guild in bot.guilds:
+        gid = str(guild.id)
+        avatar = bot.user.avatar_url
+        default_channel = guild.get_channel(jfile.data[gid]['default_channel'])
+        embed = discord.Embed(
+            title = 'Important message from dev!',
+            url = 'https://www.github.com/littlemansmg/pydumpster',
+            color = discord.Color.green()
+        )
+        embed.set_thumbnail(url = avatar)
+        embed.add_field(name = title, value = " ".join(message))
+        embed.add_field(name = 'Github', value = "www.github.com/littlemansmg/pydumpster.", inline = False)
+        embed.set_footer(text = "Want to learn how to make bots yourself? Join r/discord_bots subreddit "
+                                "or their discord server(Invite: xRFmHYQ)")
+
+        await default_channel.send(embed = embed)
+
 # endregion
 
 # endregion
