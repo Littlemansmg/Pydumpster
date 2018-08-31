@@ -1,6 +1,6 @@
 # Pydumpster
 This bot is built to follow subreddits and send posts to a discord server. This is a remake of 
-[Pydump-async](www.github.com/littlemansmg/pydump-async) 
+[Pydump-async](www.github.com/littlemansmg/pydump-async).
 
 ## Getting Started
 [Invite](https://discordapp.com/api/oauth2/authorize?client_id=416449905805230080&permissions=125968&scope=bot) 
@@ -11,7 +11,7 @@ the bot to your server! It's constantly maintained, and running.
 * Bot can sort through the json object to find the proper URL and send the URL + the subreddit it came from to discord. 
 * Bot can read server settings from json file.
 * Bot can set various options
-  * Default channel (optional in some cases)
+  * Default channel
     * Where the bot should send reddit posts
     * Default channel is the server owner
   * NSFW filter
@@ -35,9 +35,14 @@ the bot to your server! It's constantly maintained, and running.
 *This list is in no particular order.*
 * Add more options. (planned below)
   * default sort
-  * embeds for posts
+* add text to the regular text posts
+* add a better suggestion method
 * Set up role based checks. 
   * Ex. Instead of just admins, let people with x role use the command.
+
+## Known Issues
+* Most gifs don't load in the embeds, so it forces the user to go to reddit itself to view.
+* If a title or a text value is too long, it will error and repost multiple times before fixing itself. 
 
 ## Built With
 * [Discord.py](https://github.com/Rapptz/discord.py) - Discord API wrapper to run a discord bot in Python.
