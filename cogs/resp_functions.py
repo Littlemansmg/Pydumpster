@@ -59,6 +59,7 @@ class response:
         :param guild:
         :return:
         """
+        # TODO: Default sort; bot_commands - various commands + make command
         self.jfile.data.update({
             str(guild.id): {
                 'default_channel': guild.owner.id,
@@ -73,6 +74,7 @@ class response:
 
         self.jfile.save
 
+
         # message owner about bot usage.
         await guild.owner.send('Thanks for adding me to the guild! There are a few things I need '
                                'from you or your admins to get running though.\n'
@@ -85,6 +87,7 @@ class response:
 
         # create new task for the guild
         asyncio.ensure_future(self.my_background_task(guild))
+        log.guildinfo("Added", guild.id)
 
     async def my_background_task(self, guild):
         """
@@ -267,6 +270,7 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
     :param nsfw_channel:
     :return:
     """
+    # TODO: Set text to embeds, Make gifs work.
     images = {}
     nsfwimages = {}
     nsfw = False

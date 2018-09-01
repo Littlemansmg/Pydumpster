@@ -29,6 +29,7 @@ class Event():
         """
         self.jfile.data.pop(str(guild.id), None)
         self.jfile.save
+        log.guildinfo("Removed", guild.id)
 
     async def on_command_error(self, ctx, error):
         # when error is raised, this is what happens.
@@ -52,3 +53,7 @@ class Event():
             await ctx.message.delete()
             await ctx.send('Sorry. You provided an argument that doesn\'t quite work.')
             log.catchlog(error)
+
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.message.delete()
+            await ctx.send('This command is on cooldown. You have to wait 2 minutes to use this command.')

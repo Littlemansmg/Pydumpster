@@ -4,6 +4,7 @@ Command cog for Pydumpster
 
 import discord
 from discord.ext import commands
+
 from pyson import Pyson
 import cogs.checks as checks
 import cogs.bot_logs as log
@@ -271,16 +272,6 @@ class bot_commands:
                        "but I am getting better.\n"
                        "```")
         log.commandinfo(ctx)
-
-    @about.command(name='suggest')
-    async def suggest(self, ctx):
-        """
-        This command returns my github because I don't have a good way to receive suggestions.
-        :param ctx:
-        :return:
-        """
-        await ctx.send('I don\'t have a good way to receive suggestions, so all issues and suggestions are to go '
-                       'to my github: https://github.com/littlemansmg/pydumpster/issues')
     # endregion
 
     # region -----OTHER COMMANDS
@@ -392,6 +383,38 @@ class bot_commands:
 
         log.commandinfo(ctx)
 
+    @commands.command(name='suggest')
+    @commands.cooldown(1, 120.0, commands.BucketType.user)
+    async def suggest(self, ctx, option, *, suggestion):
+        """
+        Suggestion command that sends them to the creator.
+        This command is on a 2 minute cooldown after one use
+        Example: rd/suggest Feature Your bot is dumb, stop programming.
+        :param ctx:
+        :param option:
+        :param suggestion:
+        :return:
+        """
+        await ctx.message.delete()
+        features = ['feature', 'bug', 'general']
+
+        embed = discord.Embed(
+            title='Suggestion',
+            color=discord.Color.from_rgb(0, 128, 0)
+        )
+
+        if option.lower() not in features:
+            embed.add_field(name='General', value=f'{option} {suggestion}')
+        else:
+            option = f'{option[0].upper()}{option[1:]}'
+            embed.add_field(name=option, value=suggestion)
+
+        owner = self.bot.get_user(self.bot.owner_id)
+
+        await owner.send(embed=embed)
+        await ctx.send('Your suggestion has been sent.')
+        log.commandinfo(ctx)
+
     @commands.command(name='fuck', hidden=True)
     @commands.is_owner()
     async def turnoff(self, ctx):
@@ -399,7 +422,7 @@ class bot_commands:
 
     @commands.command(name='update', hidden=True)
     @commands.is_owner()
-    async def update(self, ctx, title, *message):
+    async def update(self, ctx, title, *message: str):
         for guild in self.bot.guilds:
             gid = str(guild.id)
             avatar = self.bot.user.avatar_url
@@ -412,6 +435,14 @@ class bot_commands:
             embed.set_thumbnail(url=avatar)
             embed.add_field(name=title, value=" ".join(message))
             embed.add_field(name='Github', value="www.github.com/littlemansmg/pydumpster.", inline=False)
+            embed.add_field(name = "Up Next", value = ">>Set up role based checks, so instead of "
+                                                      "just admins, people with x role can use a command. \n"
+                                                      ">>Add a command to change the default sort for reddit. i.e. "
+                                                      "new/hot/top. \n"
+                                                      ">>Show text on the embeds so you can see a text post"
+                                                      "if needed.")
+            embed.add_field(name = "Known Bugs", value = "Gifs don't really work in the embeds and cause users to "
+                                                         "go to the post on reddit.")
             embed.set_footer(text="Want to learn how to make bots yourself? Join r/discord_bots subreddit "
                                   "or their discord server(Invite: xRFmHYQ)")
 

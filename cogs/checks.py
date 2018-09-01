@@ -5,6 +5,8 @@ Checks cog for Pydumpster
 import discord
 from discord.ext import commands
 
+# TODO: Set up role based checks; resp_functions - on guild join; bot_commands - various commands + make commands
+
 def admin_check():
     # check if the user is an admin
     def predicate(ctx):

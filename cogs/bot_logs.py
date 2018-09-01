@@ -9,6 +9,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler('discord.log', 'a', 'utf-8')],
     level=logging.INFO
 )
+
 # region -----LOGS
 def commandinfo(ctx):
     # log when a command it's used
@@ -36,5 +37,8 @@ def catchlog(exception):
     now = dt.now().strftime('%m/%d %H:%M')
     logging.info(f'{now} EXCEPTION CAUGHT: {exception}')
 
-# TODO: server add/remove log
+def guildinfo(reason, gid):
+    now = dt.now().strftime('%m/%d %H:%M')
+    logging.info(f'{now} Guild: {gid}, {reason}')
+
 # endregion

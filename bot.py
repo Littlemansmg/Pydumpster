@@ -27,10 +27,10 @@ Other Information:
 """
 
 from discord.ext import commands
-import cogs.bot_logs as log
 import cogs.resp_functions as respfunc
 import cogs.checks as checks
 from cogs import bot_commands, events
+import sys
 
 bot = commands.Bot(command_prefix = 'rd/', case_insensitive = True, owner_id = 179050708908113920)
 # Check to prevent user from trying to use commands in a PM
@@ -39,15 +39,11 @@ bot.add_check(checks.nopms)
 # region -----STARTUP
 if __name__ == '__main__':
     # get token
-    with open('token.txt') as file:
-        token = file.readline()
+    token = sys.argv[1]
 
     # run bot/start loop
-    try:
-        bot.add_cog(bot_commands.bot_commands(bot))
-        bot.add_cog(events.Event(bot))
-        bot.add_cog(respfunc.response(bot))
-        bot.run(token.strip())
-    except Exception as e:
-        log.catchlog(e)
+    bot.add_cog(bot_commands.bot_commands(bot))
+    bot.add_cog(events.Event(bot))
+    bot.add_cog(respfunc.response(bot))
+    bot.run(token.strip())
 # endregion
