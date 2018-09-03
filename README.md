@@ -35,16 +35,13 @@ the bot to your server! It's constantly maintained, and running.
 *This list is in no particular order.*
 * Add more options. (planned below)
   * default sort
-* add text to the regular text posts
-* add a better suggestion method
 * Set up role based checks. 
   * Ex. Instead of just admins, let people with x role use the command.
+* Personalize the help command so that it is easier to read/use.
 
 ## Known Issues
-* Most gifs don't load in the embeds, so it forces the user to go to reddit itself to view.
-* If a title or a text value is too long, it will error and repost multiple times before fixing itself. 
+* None that I am aware of. :D
 
 ## Built With
 * [Discord.py](https://github.com/Rapptz/discord.py) - Discord API wrapper to run a discord bot in Python.
   * version 1.0.0 A.K.A. [discord-rewrite.py](https://discordpy.readthedocs.io/en/rewrite/index.html).
-  Most of this is the documentation for discord.ext.commands

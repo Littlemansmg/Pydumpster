@@ -104,7 +104,7 @@ class response:
                 log.taskcomplete(guild.id)
                 await asyncio.sleep(delay)
             except Exception as e:
-                log.catchlog(e)
+                log.catchlog(f"My background task{e}")
 
     async def start_tasks(self, bot):
         await self.bot.wait_until_ready()
@@ -141,6 +141,7 @@ class response:
         :return:
         """
         now = dt.utcnow()
+        gifformat = ['gfycat', '.gif', '.gifv', '.mp4']
         gid = str(guild.id)
         # get default posting channel from json file
         default_channel = guild.get_channel(self.jfile.data[gid]['default_channel'])
@@ -189,23 +190,62 @@ class response:
                     if nsfw is True:
                         await default_channel.edit(nsfw=True)
 
-                    for image in images:
-                        embed = await embedmaker(image, images)
-                        await default_channel.send(embed=embed)
+                    for image, info in images.items():
+                        embed = None
+                        if info['selftext'] != "" and image in info['url']:
+                            embed = await embedtext(info)
+                            await default_channel.send(embed = embed)
+                            await asyncio.sleep(1.5)
+                            continue
+                        for gif in gifformat:
+                            if info['url'].find(gif) != -1:
+                                embed = await embedgif(info)
+                                await default_channel.send(embed = embed)
+                                await default_channel.send(info['url'])
+                                break
+                        if embed is None:
+                            embed = await embedimage(info)
+                            await default_channel.send(embed=embed)
                         await asyncio.sleep(1.5)  # try to prevent the ratelimit from being reached.
 
                 if nsfwimages:
-                    for image in nsfwimages:
-                        embed = await embedmaker(image, nsfwimages)
-                        await nsfw_channel.send(embed=embed)
+                    embed = None
+                    for image, info in nsfwimages.items():
+                        if info['selftext'] != "":
+                            embed = await embedtext(info)
+                            await nsfw_channel.send(embed = embed)
+                            await asyncio.sleep(1.5)
+                            continue
+                        for gif in gifformat:
+                            if info['url'].find(gif) != -1:
+                                embed = await embedgif(info)
+                                await nsfw_channel.send(embed = embed)
+                                await nsfw_channel.send(info['url'])
+                                break
+                        if embed is None:
+                            embed = await embedimage(info)
+                            await nsfw_channel.send(embed=embed)
                         await asyncio.sleep(1.5)
 
             elif create == 1 and images:
                 # send to channels labled for reddits
+                embed = None
                 sendto = await response.createchannel(self, reddit, guild, nsfw)
-                for image in images:
-                    embed = await embedmaker(image, images)
-                    await sendto.send(embed=embed)
+                for image, info in images.items():
+                    if info['selftext'] != "":
+                        embed = await embedtext(info)
+                        await sendto.send(embed=embed)
+                        await asyncio.sleep(1.5)
+                        continue
+                    for gif in gifformat:
+                        if info['url'].find(gif) != -1:
+                            embed = await embedgif(info)
+                            await sendto.send(embed=embed)
+                            await sendto.send(info['url'])
+                            break
+                    if embed is None:
+                        embed = await embedimage(info)
+                        await sendto.send(embed=embed)
 
     async def offjoin(self, guilds):
         """
@@ -270,7 +310,6 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
     :param nsfw_channel:
     :return:
     """
-    # TODO: Set text to embeds, Make gifs work.
     images = {}
     nsfwimages = {}
     nsfw = False
@@ -288,6 +327,7 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
                             'author': x['author'],
                             'url': x['url'],
                             'permalink': x['permalink'],
+                            'selftext': x['selftext'],
                             'subreddit': x['subreddit']
                         }
                     })
@@ -299,6 +339,7 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
                             'author': x['author'],
                             'url': x['url'],
                             'permalink': x['permalink'],
+                            'selftext': x['selftext'],
                             'subreddit': x['subreddit']
                         }
                     })
@@ -309,6 +350,7 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
                         'author': x['author'],
                         'url': x['url'],
                         'permalink': x['permalink'],
+                        'selftext': x['selftext'],
                         'subreddit': x['subreddit']
                     }
                 })
@@ -319,17 +361,62 @@ async def appendimages(posts, now, delay, nsfwfilter, nsfw_channel):
             break
     return (images, nsfwimages, nsfw)
 
-async def embedmaker(id, dictionary):
+async def embedimage(info):
     embed = discord.Embed(
-        title=dictionary[id]['title'],
-        url=f"https://www.reddit.com{dictionary[id]['permalink']}",
+        title=info['title'],
+        url=f"https://www.reddit.com{info['permalink']}",
         color=discord.Color.from_rgb(255, 69, 0)
     )
     embed.set_author(
-        name=dictionary[id]['author'],
-        url=f"https://www.reddit.com/u/{dictionary[id]['author']}"
+        name=info['author'],
+        url=f"https://www.reddit.com/u/{info['author']}"
     )
-    embed.set_image(url=dictionary[id]['url'])
-    embed.set_footer(text=f"https://www.reddit.com/r/{dictionary[id]['subreddit']}")
+    embed.set_image(url=info['url'])
+    embed.set_footer(text=f"https://www.reddit.com/r/{info['subreddit']}")
     return embed
 
+async def embedgif(info):
+    embed = discord.Embed(
+        title = info['title'],
+        url = f"https://www.reddit.com{info['permalink']}",
+        color = discord.Color.from_rgb(255, 69, 0)
+    )
+
+    embed.set_author(
+        name=info['author'],
+        url=f"https://www.reddit.com/u/{info['author']}"
+    )
+    embed.set_footer(text=f"https://www.reddit.com/r/{info['subreddit']}")
+
+    return embed
+
+async def embedtext(info):
+    if len(info['title']) >= 255:
+        title = info['title'][:250]
+        title = title + '...'
+        embed = discord.Embed(
+            title=title,
+            url=f"https://www.reddit.com{info['permalink']}",
+            color=discord.Color.from_rgb(255, 69, 0)
+        )
+    else:
+        embed = discord.Embed(
+            title=info['title'],
+            url=f"https://www.reddit.com{info['permalink']}",
+            color=discord.Color.from_rgb(255, 69, 0)
+        )
+
+    embed.set_author(
+        name=info['author'],
+        url=f"https://www.reddit.com/u/{info['author']}"
+    )
+
+    if len(info['selftext']) >= 1024:
+        text = info['selftext'][:1020]
+        text = text + '...'
+        embed.add_field(name = "Post", value = text)
+    else:
+        embed.add_field(name = "Post", value = info['selftext'])
+    embed.set_footer(text=f"https://www.reddit.com/r/{info['subreddit']}")
+
+    return embed

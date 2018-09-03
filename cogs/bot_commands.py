@@ -15,6 +15,9 @@ class bot_commands:
         self.bot = bot
         self.jfile = Pyson('options.json')
 
+    # TODO: Make a personal help command to make it easier to use.
+    # TODO: Cog loader and unloader?
+
     # region -----DEFAULT COMMAND GROUP
     @commands.group(name='default', case_insensitive=True)
     @checks.admin_check()
@@ -414,10 +417,13 @@ class bot_commands:
         await owner.send(embed=embed)
         await ctx.send('Your suggestion has been sent.')
         log.commandinfo(ctx)
+    # endregion
 
+    # region -----Owner Commands
     @commands.command(name='fuck', hidden=True)
     @commands.is_owner()
     async def turnoff(self, ctx):
+        await self.bot.logout()
         await self.bot.close()
 
     @commands.command(name='update', hidden=True)
@@ -430,7 +436,7 @@ class bot_commands:
             embed = discord.Embed(
                 title='Important message from dev!',
                 url='https://www.github.com/littlemansmg/pydumpster',
-                color=discord.Color.green()
+                color=discord.Color.from_rgb(0, 128, 0)
             )
             embed.set_thumbnail(url=avatar)
             embed.add_field(name=title, value=" ".join(message))
@@ -439,10 +445,13 @@ class bot_commands:
                                                       "just admins, people with x role can use a command. \n"
                                                       ">>Add a command to change the default sort for reddit. i.e. "
                                                       "new/hot/top. \n"
-                                                      ">>Show text on the embeds so you can see a text post"
-                                                      "if needed.")
-            embed.add_field(name = "Known Bugs", value = "Gifs don't really work in the embeds and cause users to "
-                                                         "go to the post on reddit.")
+                                                      ">>(Added, Thanks Runew0lf)Personalize the help command. "
+                                                      "It looks really bland, and weird to use, so I'm going to make"
+                                                      " it look better.")
+            embed.add_field(name = "Known Bugs", value = "(Actually fixed) Titles and Posts that are too long would "
+                                                         "cause errors in my logs and repost for an extended period "
+                                                         "of time. I have eliminated this issue."
+                                                         "issue.")
             embed.set_footer(text="Want to learn how to make bots yourself? Join r/discord_bots subreddit "
                                   "or their discord server(Invite: xRFmHYQ)")
 

@@ -29,7 +29,7 @@ Other Information:
 from discord.ext import commands
 import cogs.resp_functions as respfunc
 import cogs.checks as checks
-from cogs import bot_commands, events
+from cogs import bot_commands, events, help
 import sys
 
 bot = commands.Bot(command_prefix = 'rd/', case_insensitive = True, owner_id = 179050708908113920)
@@ -42,6 +42,8 @@ if __name__ == '__main__':
     token = sys.argv[1]
 
     # run bot/start loop
+    bot.remove_command('help')
+    bot.add_cog(help.Help(bot))
     bot.add_cog(bot_commands.bot_commands(bot))
     bot.add_cog(events.Event(bot))
     bot.add_cog(respfunc.response(bot))
